@@ -1,14 +1,16 @@
 namespace cont_bancar;
+using System;
+
 public class BankAccount
 {
-    private readonly object _syncLock = new();
     public Guid AccountId = Guid.NewGuid();
     public decimal Balance { get; private set; }
     public BankAccount(decimal openingBalance)
     {
         if (openingBalance < 0)
-
-            Balance = openingBalance;
+            throw new ArgumentOutOfRangeException(
+                "Invalid opening balance, sum can not be lower than 0 before opening the account");
+        Balance = openingBalance;
     }
 
     public void Withdraw(decimal sum)
@@ -21,13 +23,11 @@ public class BankAccount
 
         if (sum > Balance)
             throw new ArgumentOutOfRangeException(
-                    paramName: nameof(sum), message: "Sum must be positive",
+                    paramName: nameof(sum), message: "Sum must be lower or equal to the Balance",
                     actualValue: sum
             );
-        lock (_syncLock)
-        {
-            Balance -= sum;
-        }
+     
+        Balance -= sum;
     }
 
     public void Deposit(decimal sum)
@@ -39,9 +39,6 @@ public class BankAccount
             );
 
 
-        lock (_syncLock)
-        {
-            Balance += sum;
-        }
+        Balance += sum;
     }
 }
