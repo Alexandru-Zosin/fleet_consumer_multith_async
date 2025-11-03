@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/delivery-record.v1.schema.json",
+  "title": "DeliveryRecordV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "timestamp",
+    "fleetId",
+    "vehicleId",
+    "deliveryStatus",
+    "deliveryList",
+    "schemaVersion"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "fleetId": { "type": "string" },
+    "vehicleId": { "type": "string" },
+    "deliveryStatus": { "type": "string" },
+    "deliveryList": {
+      "type": "array",
+      "items": { "type": "integer" }
+    },
+    "schemaVersion": { "type": "string" },
+    "whatWasAdded": {
+      "type": "array",
+      "items": { "type": "integer" }
+    }
+  }
+}

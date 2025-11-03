@@ -1,17 +1,14 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Configs.FolderWatch;
+namespace Config.InboxWatch;
 
-public sealed class FolderWatchConfig
+public sealed class InboxWatcherConfig
 {
 	[JsonPropertyName("path")]
 	public string? Path { get; set; }
 
-	[JsonPropertyName("fileTypes")]
+	[JsonPropertyName("fileType")]
 	public string? FileType{ get; set; }
 	 
 	[JsonPropertyName("includeSubdirectories")]
@@ -29,13 +26,13 @@ public sealed class FolderWatchConfig
 			throw new ArgumentException("Filetype is not valid!");
 	}
 
-	public static FolderWatchConfig LoadJsonFromFile(string jsonFile)
+	public static InboxWatcherConfig LoadJsonFromFile(string jsonFile)
 	{
 		if (!File.Exists(jsonFile))
 			throw new FileNotFoundException("Config file not found.");
 
         var json = File.ReadAllText(jsonFile);
-		var cfg = JsonSerializer.Deserialize<FolderWatchConfig>(json, JsonOptions()) ??
+		var cfg = JsonSerializer.Deserialize<InboxWatcherConfig>(json, JsonOptions()) ??
 			throw new InvalidOperationException("Deserialization failed");
 
 		cfg.Validate();
