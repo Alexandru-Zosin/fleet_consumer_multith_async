@@ -68,23 +68,6 @@ public sealed class PipelineWorker : IPipelineWorker
                 _pendingInChannel.TryRemove(file, out _);
                 _concurrencySemaphore.Release();
 
-                /*
-
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        cts.ThrowIfCancellationRequested();
-                        await new FileProcessor(file, _kpiRegistry).ProcessAsync().ConfigureAwait(false);
-                    }
-                    finally
-                    {
-                        _pendingInChannel.TryRemove(file, out _);
-                        _concurrencySemaphore.Release();
-                    }
-                });
-                */
-
             }
         }
         catch (OperationCanceledException)
@@ -100,6 +83,55 @@ public sealed class PipelineWorker : IPipelineWorker
             }
         }
     }
+
+    public async Task ChannelLoopMultiTh(CancellationToken cts)
+    {
+        Stopwatch? sw = null;
+        var tasks = new ConcurrentDictionary<Task, byte>();
+
+        try
+        {
+            await foreach (var file in _channel.Reader.ReadAllAsync(cts))
+            {
+                sw ??= Stopwatch.StartNew();
+
+                await _concurrencySemaphore.WaitAsync(cts).ConfigureAwait(false);
+                Console.WriteLine($"[{DateTime.UtcNow:O}] Processing file: {file}");
+
+                var task = Task.Run(async () =>
+                {
+                    try
+                    {
+                        cts.ThrowIfCancellationRequested();
+                        await new FileProcessor(file, _kpiRegistry).ProcessAsync().ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        _pendingInChannel.TryRemove(file, out _);
+                        _concurrencySemaphore.Release();
+                    }
+                }, cts);
+
+                tasks.TryAdd(task, 0);
+                _ = task.ContinueWith(t => tasks.TryRemove(t, out _), TaskScheduler.Default);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            if (sw is not null)
+            {
+                await Task.WhenAll(tasks.Keys); // wait for all concurrent processors to finish
+                sw.Stop();
+                var logLine = $"Entire operation duration={sw.ElapsedMilliseconds}ms{Environment.NewLine}";
+                await File.AppendAllTextAsync(Path.Combine(PathConfig.DataDir, "file_metrics.log"), logLine);
+            }
+        }
+    }
+
+
     public void Dispose()
     {
         _channel.Writer.TryComplete();

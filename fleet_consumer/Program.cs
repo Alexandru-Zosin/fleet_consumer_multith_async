@@ -31,6 +31,7 @@ var worker = new PipelineWorker(kpiRegistry);
 using var watcher = new InboxWatcher(cfg, worker, cts);
 
 Console.WriteLine("Watching folder. Press CtrlC to exit.");
+
 await watcher.StartAsync();
 foreach (var kpi in kpis)
 {

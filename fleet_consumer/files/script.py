@@ -5,7 +5,7 @@ from pathlib import Path
 from shutil import copyfile
 from time import sleep
 
-COUNT = 5
+COUNT = 100
 
 SRC_117_TMP = Path("telemetry_20251103_152615_V-117.tmp")
 SRC_127_TMP = Path("telemetry_20251103_152615_V-127.tmp")

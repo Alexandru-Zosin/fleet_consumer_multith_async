@@ -31,10 +31,6 @@ public sealed class InboxWatcher : IDisposable
                 await _worker.EnqueueIfNewAsync(NormalizePath(eventArgs.FullPath), _cts.Token);
        //     }
         };
-        // _folderWatch.Error += (_, e) =>
-        //      Console.WriteLine("FSW overflow: " + e.GetException().Message);
-        //  _rescanFolderTaskTimer = new Timer(_ => RescanFolder(), null, TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(1));
-        // interal OS-level native timer
     }
 
     private void RescanFolder()

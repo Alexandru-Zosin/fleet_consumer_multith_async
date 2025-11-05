@@ -20,27 +20,17 @@ public static class JsonDTOReader
         foreach (var element in doc.RootElement.EnumerateArray())
         {
             object? obj = null;
-            try
-            {
-                if (!element.TryGetProperty("schemaVersion", out var schemaProp))
-                    continue;
+            if (!element.TryGetProperty("schemaVersion", out var schemaProp))
+                continue;
 
-                var schema = schemaProp.GetString();
-                if (schema is null)
-                    continue;
+            var schema = schemaProp.GetString();
+            if (schema is null)
+                continue;
 
-                if (!DTORegistry.Schemas.TryGetValue(schema, out var dtoType))
-                    continue;
+            if (!DTORegistry.Schemas.TryGetValue(schema, out var dtoType))
+                continue;
 
-                obj = JsonSerializer.Deserialize(element.GetRawText(), dtoType, _jsonOptions);
-            }
-            catch (Exception ex)
-            {
-                await File.AppendAllTextAsync(
-                    Path.Combine(PathConfig.FilesDir, "errorFiles", "errors.log"),
-                    $"{DateTime.UtcNow:o} | Parse error: {ex.Message}{Environment.NewLine}"
-                );
-            }
+            obj = JsonSerializer.Deserialize(element.GetRawText(), dtoType, _jsonOptions);
 
             if (obj is not null)
                 yield return obj;

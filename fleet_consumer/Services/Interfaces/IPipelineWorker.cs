@@ -8,4 +8,5 @@ public interface IPipelineWorker : IDisposable
 {
     Task ChannelLoop(CancellationToken cancellationToken);
     Task EnqueueIfNewAsync(string path, CancellationToken cancellationToken);
+    Task ChannelLoopMultiTh(CancellationToken cancellationToken);
 }

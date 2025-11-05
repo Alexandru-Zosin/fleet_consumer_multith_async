@@ -21,12 +21,30 @@ public sealed class FileProcessor
         await using var fs = await TryOpenWithRetryAsync(_path);
         if (fs is null) return;
 
-        //if (!await ValidateChecksumAsync(_path, fs)) return;
+        /*
+        if (!await ValidateChecksumAsync(_path, fs))
+        {
+
+            var errorDir = Path.Combine(PathConfig.FilesDir, "errorFiles");
+            Directory.CreateDirectory(errorDir);
+            var destPath = Path.Combine(errorDir, Path.GetFileName(_path));
+
+            await fs.DisposeAsync(); // release file handle before moving it and its metadata
+            File.Move(_path, destPath, true);
+            File.Move(_path + ".meta.json", destPath + ".meta.json", true);
+            await File.AppendAllTextAsync(
+                Path.Combine(errorDir, "errors.log"),
+                $"{DateTime.UtcNow:o} | Checksum invalid for {_path}{Environment.NewLine}");
+
+            return;
+        }
+        */
+        
         var sw = Stopwatch.StartNew();
         int count = 0;
-
         Console.WriteLine($"File {Path.GetFileName(_path)} started processing (stopwatch started) ... ");
 
+        /*
         await foreach (var dto in JsonDTOReader.ReadArrayFileAsync(_path))
         {
             if (dto == null) continue;
@@ -34,18 +52,72 @@ public sealed class FileProcessor
             foreach (var kpi in _kpiRegistry.ResolveFor(dto.GetType()))
                 kpi.CalculateUntyped(dto);
         }
+        */
+        IAsyncEnumerator<object?>? enumerator = null;
+        try // if file opening throws error, log it and MOVE IT
+        {
+            enumerator = JsonDTOReader.ReadArrayFileAsync(_path).GetAsyncEnumerator();
+        }
+        catch (Exception ex)
+        {
+            var errorDir = Path.Combine(PathConfig.FilesDir, "errorFiles");
+            Directory.CreateDirectory(Path.Combine(PathConfig.FilesDir, "errorFiles"));
+            await File.AppendAllTextAsync(
+                Path.Combine(PathConfig.FilesDir, "errorFiles", "errors.log"),
+                $"{DateTime.UtcNow:o} | Enumerator init error: {ex.Message}{Environment.NewLine}");
+
+            var destPath = Path.Combine(errorDir, Path.GetFileName(_path));
+            await fs.DisposeAsync(); // release file handle before moving it and its metadata
+            File.Move(_path, destPath, true);
+            File.Move(_path + ".meta.json", destPath + ".meta.json", true);
+            return;
+        }
+
+        while (true)
+        {
+            bool hasNext;
+            try // if any specific DTO in that file throws an error 
+            {
+                hasNext = await enumerator.MoveNextAsync();
+            }
+            catch (Exception ex)
+            {
+                await File.AppendAllTextAsync(
+                    Path.Combine(PathConfig.FilesDir, "errorFiles", "errors.log"),
+                    $"{DateTime.UtcNow:o} | Parse error: {ex.Message}{Environment.NewLine}"
+                );
+                break; // skip this corrupted file
+            }
+
+            if (!hasNext)
+                break;
+
+            var dto = enumerator.Current;
+            if (dto == null)
+                continue;
+
+            count++;
+            foreach (var kpi in _kpiRegistry.ResolveFor(dto.GetType()))
+                kpi.CalculateUntyped(dto);
+        }
+
+        if (enumerator is IAsyncDisposable ad)
+            await ad.DisposeAsync(); // disposes the async enumerator
 
         sw.Stop();
         await File.AppendAllTextAsync(
-            Path.Combine(PathConfig.DataDir, "file_metrics.log"), 
+            Path.Combine(PathConfig.DataDir, "file_metrics.log"),
             $"{Path.GetFileName(_path)} | {sw.ElapsedMilliseconds}ms{Environment.NewLine} | no={count} | {DateTime.UtcNow:o}"
         );
+        await fs.DisposeAsync(); // release file descriptor
+        File.Delete(_path); // delete the file after successful processing and its metadata
+        File.Delete(_path + ".meta.json");
     }
 
     private static async Task<FileStream?> TryOpenWithRetryAsync(string path)
     {
         int retries = 3;
-        var delay = TimeSpan.FromMilliseconds(200);
+        var delay = TimeSpan.FromMilliseconds(750);
 
         for (int i = 0; i < retries; i++)
         {
@@ -55,6 +127,8 @@ public sealed class FileProcessor
             }
             catch (Exception ex)
             {
+                var errorDir = Path.Combine(PathConfig.FilesDir, "errorFiles");
+                Directory.CreateDirectory(errorDir);
                 await File.AppendAllTextAsync(
                     Path.Combine(PathConfig.FilesDir, "errorFiles", "errors.log"),
                     $"{DateTime.UtcNow:o} | File open failed try {i + 1}: {ex.Message}{Environment.NewLine}"
@@ -93,11 +167,6 @@ public sealed class FileProcessor
 
         if (actual.Equals(expected.Trim(), StringComparison.OrdinalIgnoreCase))
             return true;
-
-        await File.AppendAllTextAsync(
-            Path.Combine(PathConfig.FilesDir, "errorFiles", "errors.log"),
-            $"{DateTime.UtcNow:o} | Checksum mismatch for {path}{Environment.NewLine}"
-        ).ConfigureAwait(false);
 
         return false;
     }
